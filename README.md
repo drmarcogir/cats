@@ -2,7 +2,7 @@
 
 *Marco Girardello* (marco.girardello@gmail.com) 
 
-R code developed as part of the manuscript "Dog days are over...cat ones still ongoing! Domestic cats are a most serious threat to native biodiversity in a Mediterranean country "Mori et al. (in review) . A copy of the main script (AnalysesCats.R) is shown below. 
+R code developed as part of the manuscript "Dog days are over...cat ones still ongoing! Domestic cats are a most serious threat to native biodiversity in a Mediterranean country Mori et al. (in review)". A copy of the main script (AnalysesCats.R) is shown below. 
 
 ```r
 #########################
