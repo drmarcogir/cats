@@ -16,7 +16,6 @@ library(magrittr);library(data.table)
 library(network);library(sna)
 library(ggnetwork)
 
-
 # load data files
 cats<-read.csv("/mnt/data1tb/Dropbox/gatti/data/gatti/Gatti.csv")
 
@@ -25,7 +24,9 @@ mamtraits<-read.csv("/mnt/data1tb/Dropbox/HistFunc/traitdata/wilman14/traitfinal
 birdtraits<-read.csv("/mnt/data1tb/Dropbox/FDTD/birdsFDfiles/traitbirdsALL.csv")
 othertraits<-read.csv("/mnt/data1tb/Dropbox/gatti/data/traits/othergroups.csv")
 
-#---- Data preparation
+####################
+# Data preparation
+####################
 
 # prepare trait data for analyses
 mamtraits %>%
@@ -43,7 +44,6 @@ othertraits %>%
   dplyr::select(-c(Classe))  %>%
   mutate(Species=paste(stri_split_fixed(Species," ",simplify=T)[,1],stri_split_fixed(Species," ",simplify=T)[,2],sep="_")) %>%
   bind_rows(intermd) ->alltraits
-
 
 write.csv(alltraits,file="/mnt/data1tb/Dropbox/gatti/data/traits/alltraits.csv",row.names=FALSE)
 
@@ -87,10 +87,11 @@ anti_join(edge_df1 %>% dplyr::select(group2) %>%
             mutate(Species=stri_replace_all_fixed(Species," ","_")),traitdf %>%
             dplyr::select(Species)) 
 
-#---- Data analysis
-VU,NT,LC,DD,NE,Alien
+####################
+# Data analysis
+####################
 
-# Barchart
+#--- Barchart of impacts group according to IUCN threat categories
 cats1 %>%
   filter(Italian.IUCN!="ND" & Classe!="" & Italian.IUCN!="INVALID SPECIES" & International.IUCN!="ND") %>%
   dplyr::select(-c(TOPONIMO,Species))   %>%
@@ -112,7 +113,8 @@ cats1 %>%
 
 ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.png",width=12,height=9,dpi=400)
 
-# Functional diversity
+# --- Impacts on the functional structure of vertebrate communities
+
 # Principal coordinate analysis
 row.names(traitdf)<-as.character(traitdf$Species)
 pcoares<-ape::pcoa(gowdis(traitdf[2:12]),correction="cailliez")
@@ -127,22 +129,24 @@ data.frame(pcoares$vectors[,1:2],Species=row.names(pcoares$vectors)) %>%
 # calculate convex hulls and create pretty figure
 results[, .SD[chull(Axis.1,Axis.2)], by =Classe] ->hulls  
 
+# create plot
 ggplot(data=results,aes(x=Axis.1,y=Axis.2,colour=Classe))+geom_point(size=3)+theme_bw()+
   geom_polygon(data = hulls,aes(fill=Classe),alpha = 0.2)+
   theme(axis.text =element_text(size=19,colour="black"),axis.title = 
-          element_text(size=19,colour="black"),legend.title=element_blank(),legend.text=element_text(size=19))+
+  element_text(size=19,colour="black"),legend.title=element_blank(),legend.text=element_text(size=19))+
   ylab("Dim 2")+xlab("Dim 1")->finalp  
 
+# save plot
 ggsave(finalp,file="/mnt/data1tb/Dropbox/gatti/figures/Fvolumes.png",width=9,height=8,
        dpi=400)
 
-# Multivariate analysis of variance
+# --- Multivariate analysis of variance
 res.man <- manova(cbind(Axis.1, Axis.2) ~Classe, data = results1)
 sink("/mnt/data1tb/Dropbox/gatti/results/manova.txt")
 summary(res.man)
 sink()
 
-
+# --- Create network interaction matrix
 cats1 %>%
   mutate(counter=1) %>%
   group_by(Classe,Species) %>%
@@ -156,7 +160,8 @@ cats1 %>%
   filter(group2!="Sorex_sp." & group2!="Pipistrellus_sp.") %>%
   mutate(group2=stri_replace_all_fixed(group2,"_"," ")) ->edge_df
 
-# networks by classes
+# --- Separate network plot for each animal class
+
 classe.l<-unique(edge_df$Classe)
 res<-NULL
 
@@ -175,23 +180,23 @@ for (i in 1:length(classe.l)){
   
 }
 
-
 res$Classe<-factor(res$Classe,levels=c("Amphibia","Aves","Mammalia","Reptilia"))
 
-# separate by classes
+# create plot
 netcat<-ggplot(data=res, aes(x = x, y = y, xend = xend, yend = yend)) +
   geom_edges(color = "black",aes(size=connection_strength))+
   geom_nodes(color = "grey", size = 8)+geom_nodelabel_repel(aes(label = vertex.names),
-                                                            fontface = "italic", box.padding = unit(1, "lines"),size=3)+theme_bw()+
+  fontface = "italic", box.padding = unit(1, "lines"),size=3)+theme_bw()+
   theme(legend.position="none")+facet_wrap(~Classe)+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                                                          panel.background = element_blank(), axis.line = element_line(colour = "black"),
-                                                          strip.text=element_text(face="bold",size=16),axis.text = element_blank())+
+  panel.background = element_blank(), axis.line = element_line(colour = "black"),
+  strip.text=element_text(face="bold",size=16),axis.text = element_blank())+
   ylab("")+xlab("")
 
+# save plot
 ggsave(netcat,filename = "/mnt/data1tb/Dropbox/gatti/figures/network.png",
        width=11,height=10,dpi=400)
 
-# all species together
+#---- Network plots for all classes pooled together
 
 cats1 %>%
   filter(Species!="_") %>%
@@ -218,10 +223,10 @@ res1<-ggnetwork(n)
 netcat1<-ggplot(data=res1, aes(x = x, y = y, xend = xend, yend = yend)) +
   geom_edges(color = "black",aes(size=connection_strength))+
   geom_nodes(color = "grey", size = 8)+geom_nodelabel_repel(aes(label = vertex.names),
-                                                            fontface = "italic", box.padding = unit(1, "lines"),size=3)+theme_bw()+
+  fontface = "italic", box.padding = unit(1, "lines"),size=3)+theme_bw()+
   theme(legend.position="none")+theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-                                      panel.background = element_blank(), axis.line = element_line(colour = "black"),
-                                      strip.text=element_text(face="bold",size=16),axis.text = element_blank())+
+  panel.background = element_blank(), axis.line = element_line(colour = "black"),
+  strip.text=element_text(face="bold",size=16),axis.text = element_blank())+
   ylab("")+xlab("")
 
 ggsave(netcat1,filename = "/mnt/data1tb/Dropbox/gatti/figures/network1.png",
