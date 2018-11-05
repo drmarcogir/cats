@@ -10,12 +10,38 @@ library(network);library(sna)
 library(ggnetwork)
 
 # load data files
-cats<-read.csv("/mnt/data1tb/Dropbox/gatti/data/gatti/Gatti.csv")
+read.csv("/mnt/data1tb/Dropbox/gatti/data/gatti/Gatti.csv") ->dd %>%
+  inner_join(data.frame(Classe=c("Mammalia","Aves","Reptilia","Amphibia"),
+                        Classe1=c("Mammals","Birds","Reptiles","Amphibians"))) %>%
+  dplyr::select(-c(Classe)) %>%
+  rename(Classe=Classe1) ->cats
 
 # trait datasets
 mamtraits<-read.csv("/mnt/data1tb/Dropbox/HistFunc/traitdata/wilman14/traitfinalbats.csv")
 birdtraits<-read.csv("/mnt/data1tb/Dropbox/FDTD/birdsFDfiles/traitbirdsALL.csv")
 othertraits<-read.csv("/mnt/data1tb/Dropbox/gatti/data/traits/othergroups.csv")
+
+# missing mammal species
+read.csv("/mnt/data1tb/Dropbox/HistFunc/traitdata/wilman14/MamFuncDat.csv") %>%
+  filter(Scientific=="Myotis daubentonii" | Scientific=="Hypsugo savii") %>%
+# create additional columsn for consistency
+mutate(binomial=str_replace_all(Scientific," ","_"),genus=str_split_fixed(Scientific," ",n=2)[,1],
+       sp=str_split_fixed(Scientific," ",n=2)[,2]) %>%
+  # select relevant columns
+  dplyr::select(binomial,genus,sp,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,
+                Diet.Fruit,Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) ->mis
+
+# missing bird species
+read.csv("/mnt/data1tb/Dropbox/gatti/birds/BirdFuncDat.csv") %>%
+  # select missing species
+  filter(Scientific=="Parus caeruleus") %>%
+  # create additional columsn for consistency
+  mutate(binomial=str_replace_all(Scientific," ","_"),genus=str_split_fixed(Scientific," ",n=2)[,1],
+         sp=str_split_fixed(Scientific," ",n=2)[,2]) %>%
+  # select relevant columns
+  dplyr::select(binomial,genus,sp,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,
+                Diet.Fruit,Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) ->mis1
+
 
 ####################
 # Data preparation
@@ -36,7 +62,19 @@ birdtraits %>%
 othertraits %>%
   dplyr::select(-c(Classe))  %>%
   mutate(Species=paste(stri_split_fixed(Species," ",simplify=T)[,1],stri_split_fixed(Species," ",simplify=T)[,2],sep="_")) %>%
-  bind_rows(intermd) ->alltraits
+  bind_rows(intermd) ->intermd1
+
+mis %>%
+  dplyr::select(binomial,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,Diet.Fruit,
+                Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) %>%
+  rename(Species=binomial)  %>%
+  bind_rows(intermd1) ->intermd2 
+
+mis1 %>%
+  dplyr::select(binomial,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,Diet.Fruit,
+                Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) %>%
+  rename(Species=binomial) %>%
+  bind_rows(intermd2) ->alltraits
 
 write.csv(alltraits,file="/mnt/data1tb/Dropbox/gatti/data/traits/alltraits.csv",row.names=FALSE)
 
@@ -45,7 +83,7 @@ cats %>%
   # trim white spaces
   mutate(Species=trimws(Species),Classe=trimws(Classe),TOPONIMO=trimws(TOPONIMO)) %>%
   # change Squamata for Reptilia
-  mutate(Classe=ifelse(Classe=="Squamata","Reptilia",Classe)) %>%
+  mutate(Classe=ifelse(Classe=="Squamata","Reptiles",Classe)) %>%
   # exclude Suncus etruscus ALBINO and Gallus gallus
   filter(Species!="Suncus etruscus ALBINO" & Species!="Gallus gallus") %>%
   # change names to match the style of the trait dataframes
@@ -54,12 +92,22 @@ cats %>%
   filter(Species!="Erithachus_rubecula") %>%
   mutate(Species=ifelse(Species=="Passer_italiae","Passer_domesticus",Species),
          Species=ifelse(Species=="Sylvia_subalpina","Sylvia_cantillans",Species),
-         Species=ifelse(Species=="Sylvia_subalpina","Sylvia_cantillans",Species)) %>%
+         Species=ifelse(Species=="Sylvia_subalpina","Sylvia_cantillans",Species),
+         Species=ifelse(Species=="Cyanistes_caeruleus","Parus_caeruleus",Species)) %>%
   dplyr::select(TOPONIMO,Species,Classe,Italian.IUCN,International.IUCN) %>%
   # extract unique site and species combinations
   group_by(TOPONIMO) %>%
   distinct(Species,Classe,TOPONIMO,Italian.IUCN,International.IUCN) %>%
   as.data.frame() ->cats1
+
+# test
+cats1 %>%
+  # extract species column only
+  dplyr::select(Species) %>%
+  # unique list of species
+  distinct(Species) %>%
+  anti_join(alltraits) ->dd
+
 
 # combine cat dataset with trait information
 cats1 %>%
@@ -74,11 +122,6 @@ cats1 %>%
   # take the log of body mass
   mutate(BodyMass.Value=log(BodyMass.Value)) ->traitdf
 
-# Missing species from TRAIT ANALYSIS (FIX!!!)
-anti_join(edge_df1 %>% dplyr::select(group2) %>% 
-            rename(Species=group2) %>%
-            mutate(Species=stri_replace_all_fixed(Species," ","_")),traitdf %>%
-            dplyr::select(Species)) 
 
 ####################
 # Data analysis
@@ -94,7 +137,8 @@ cats1 %>%
   summarise(count=n()) %>%
   group_by(IUCN) %>%
   mutate(freq = count / sum(count)) %>%
-  mutate(iucn.cat=factor(iucn.cat,levels=c("VU","NT","LC","DD","NE","Alien"))) %>%
+  # save intermediate result  {. ->> intermediateResult}
+  mutate(iucn.cat=factor(iucn.cat,levels=c("VU","NT","LC","DD","NE","Alien"))) %>% {. ->>counts} %>%
   ggplot(.,aes(x=Classe,y=freq,fill=iucn.cat))+geom_bar(stat="identity",colour="black")+
   theme_bw()+scale_fill_brewer(palette='RdBu')+
   theme(axis.text.x = element_text(size=17,color="black",angle=40,hjust=1),
@@ -105,6 +149,11 @@ cats1 %>%
   labs(fill="IUCN Category") ->barcat
 
 ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.png",width=12,height=9,dpi=400)
+
+as.data.frame(counts) %>%
+  filter(IUCN=="International IUCN") %>%
+  filter()
+
 
 # --- Impacts on the functional structure of vertebrate communities
 
@@ -141,17 +190,33 @@ sink()
 
 # --- Create network interaction matrix
 cats1 %>%
+  mutate(Classe=ifelse(Species=="Passer_domesticus","Birds",Classe)) %>%
   mutate(counter=1) %>%
-  group_by(Classe,Species) %>%
+  group_by(Classe1,Species) %>%
   summarise(connection_strength=sum(counter)) %>%
-  filter(Classe!="") %>%
+  filter(Classe1!="") %>%
   mutate(group1="Felis catus") %>%
-  group_by(Classe)  %>%
+  group_by(Classe1)  %>%
   mutate(connection_strength=connection_strength/sum(connection_strength)) %>%
   rename(group2=Species) %>%
   as.data.frame() %>%
   filter(group2!="Sorex_sp." & group2!="Pipistrellus_sp.") %>%
   mutate(group2=stri_replace_all_fixed(group2,"_"," ")) ->edge_df
+
+# Which class is most predated?
+cats1 %>%
+  filter(Classe!="") %>%
+  mutate(counter=1) %>%
+  mutate(total=sum(counter)) %>%
+  group_by(Classe)  %>%
+  summarise(prop=sum(counter)/unique(total)) ->dd
+  
+
+edge_df %>%
+  group_by(Classe,group2) %>%
+  summarise(max=max(connection_strength)) %>%
+  as.data.frame()
+
 
 # --- Separate network plot for each animal class
 
