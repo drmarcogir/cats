@@ -31,17 +31,6 @@ mutate(binomial=str_replace_all(Scientific," ","_"),genus=str_split_fixed(Scient
   dplyr::select(binomial,genus,sp,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,
                 Diet.Fruit,Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) ->mis
 
-# missing bird species
-read.csv("/mnt/data1tb/Dropbox/gatti/birds/BirdFuncDat.csv") %>%
-  # select missing species
-  filter(Scientific=="Parus caeruleus") %>%
-  # create additional columsn for consistency
-  mutate(binomial=str_replace_all(Scientific," ","_"),genus=str_split_fixed(Scientific," ",n=2)[,1],
-         sp=str_split_fixed(Scientific," ",n=2)[,2]) %>%
-  # select relevant columns
-  dplyr::select(binomial,genus,sp,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,
-                Diet.Fruit,Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) ->mis1
-
 
 ####################
 # Data preparation
@@ -68,13 +57,8 @@ mis %>%
   dplyr::select(binomial,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,Diet.Fruit,
                 Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) %>%
   rename(Species=binomial)  %>%
-  bind_rows(intermd1) ->intermd2 
+  bind_rows(intermd1) ->alltraits 
 
-mis1 %>%
-  dplyr::select(binomial,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,Diet.Fruit,
-                Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) %>%
-  rename(Species=binomial) %>%
-  bind_rows(intermd2) ->alltraits
 
 write.csv(alltraits,file="/mnt/data1tb/Dropbox/gatti/data/traits/alltraits.csv",row.names=FALSE)
 
@@ -150,8 +134,33 @@ cats1 %>%
 
 ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.png",width=12,height=9,dpi=400)
 
-as.data.frame(counts) %>%
-  filter(IUCN=="International IUCN") %>%
+as.data.frame(cats1) %>%
+filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
+mutate(counter=1) %>%
+  filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
+  mutate(counter=1) %>%
+  group_by(Italian.IUCN,Classe) %>%
+  summarise(tot=sum(counter)) %>%
+  filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
+  arrange(Classe,Italian.IUCN) %>%
+  
+
+as.data.frame(cats1) %>%
+mutate(counter=1) %>%
+    group_by(Classe,Species) %>%
+    summarise(tot=sum(counter)) ->tmp 
+  
+  tmp %>%
+    filter(Classe=="Mammals") %>%
+    filter()
+    filter(tot==max(tot))
+  
+    ungroup() %>%
+    group_by(Classe,Species) %>%
+    summarise(max=max(tot))
+  
+    
+  filter(Italian.IUCN=="VU") %>%
   filter()
 
 
@@ -192,30 +201,24 @@ sink()
 cats1 %>%
   mutate(Classe=ifelse(Species=="Passer_domesticus","Birds",Classe)) %>%
   mutate(counter=1) %>%
-  group_by(Classe1,Species) %>%
+  group_by(Classe,Species) %>%
   summarise(connection_strength=sum(counter)) %>%
-  filter(Classe1!="") %>%
+  filter(Classe!="") %>%
   mutate(group1="Felis catus") %>%
-  group_by(Classe1)  %>%
+  group_by(Classe)  %>%
   mutate(connection_strength=connection_strength/sum(connection_strength)) %>%
   rename(group2=Species) %>%
   as.data.frame() %>%
   filter(group2!="Sorex_sp." & group2!="Pipistrellus_sp.") %>%
   mutate(group2=stri_replace_all_fixed(group2,"_"," ")) ->edge_df
 
-# Which class is most predated?
-cats1 %>%
-  filter(Classe!="") %>%
-  mutate(counter=1) %>%
-  mutate(total=sum(counter)) %>%
-  group_by(Classe)  %>%
-  summarise(prop=sum(counter)/unique(total)) ->dd
-  
 
+
+# Which species are most predated? Print out top three
 edge_df %>%
-  group_by(Classe,group2) %>%
-  summarise(max=max(connection_strength)) %>%
-  as.data.frame()
+  group_by(Classe) %>%
+  top_n(n=3,wt=connection_strength) %>%
+  arrange(Classe,desc(connection_strength))
 
 
 # --- Separate network plot for each animal class
@@ -238,7 +241,12 @@ for (i in 1:length(classe.l)){
   
 }
 
-res$Classe<-factor(res$Classe,levels=c("Amphibia","Aves","Mammalia","Reptilia"))
+res$x<-as.numeric(res$x)
+res$y<-as.numeric(res$y)
+res$xend<-as.numeric(res$xend)
+res$yend<-as.numeric(res$yend)
+res$Classe<-fct_relevel(as_factor(res$Classe),c("Amphibians","Birds","Mammals","Reptiles"))
+
 
 # create plot
 netcat<-ggplot(data=res, aes(x = x, y = y, xend = xend, yend = yend)) +
