@@ -134,35 +134,6 @@ cats1 %>%
 
 ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.png",width=12,height=9,dpi=400)
 
-as.data.frame(cats1) %>%
-filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
-mutate(counter=1) %>%
-  filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
-  mutate(counter=1) %>%
-  group_by(Italian.IUCN,Classe) %>%
-  summarise(tot=sum(counter)) %>%
-  filter(Italian.IUCN=="NT" | Italian.IUCN=="VU")
-  arrange(Classe,Italian.IUCN) %>%
-  
-
-as.data.frame(cats1) %>%
-mutate(counter=1) %>%
-    group_by(Classe,Species) %>%
-    summarise(tot=sum(counter)) ->tmp 
-  
-  tmp %>%
-    filter(Classe=="Mammals") %>%
-    filter()
-    filter(tot==max(tot))
-  
-    ungroup() %>%
-    group_by(Classe,Species) %>%
-    summarise(max=max(tot))
-  
-    
-  filter(Italian.IUCN=="VU") %>%
-  filter()
-
 
 # --- Impacts on the functional structure of vertebrate communities
 
