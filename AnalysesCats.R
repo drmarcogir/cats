@@ -1,5 +1,5 @@
 #########################
-# Cat predation analyses 
+# Cat predation analyses
 ########################
 
 # load required libraries
@@ -10,16 +10,22 @@ library(network);library(sna)
 library(ggnetwork)
 
 # load data files
-read.csv("/mnt/data1tb/Dropbox/gatti/data/gatti/Gatti.csv") ->dd %>%
+read.csv("Gatti.csv") %>%
   inner_join(data.frame(Classe=c("Mammalia","Aves","Reptilia","Amphibia"),
                         Classe1=c("Mammals","Birds","Reptiles","Amphibians"))) %>%
   dplyr::select(-c(Classe)) %>%
   rename(Classe=Classe1) ->cats
 
+# Change names
+cats %>%
+  mutate(Species=str_replace(Species,"Pelophylax esculentus","P. esculentus complex")) %>%
+  mutate(Species=str_replace(Species,"Sorex arunchi","Sorex samniticus")) %>%
+  mutate(Species=str_replace(Species,"Tarentula mauritanica","Tarentola mauritanica")) ->cats
+
 # trait datasets
-mamtraits<-read.csv("/mnt/data1tb/Dropbox/HistFunc/traitdata/wilman14/traitfinalbats.csv")
-birdtraits<-read.csv("/mnt/data1tb/Dropbox/FDTD/birdsFDfiles/traitbirdsALL.csv")
-othertraits<-read.csv("/mnt/data1tb/Dropbox/gatti/data/traits/othergroups.csv")
+mamtraits<-read.csv("traitfinalbats.csv")
+birdtraits<-read.csv("traitbirdsALL.csv")
+othertraits<-read.csv("othergroups.csv")
 
 # missing mammal species
 read.csv("/mnt/data1tb/Dropbox/HistFunc/traitdata/wilman14/MamFuncDat.csv") %>%
@@ -57,7 +63,7 @@ mis %>%
   dplyr::select(binomial,Diet.Inv,Diet.Vend,Diet.Vect,Diet.Vfish,Diet.Vunk,Diet.Scav,Diet.Fruit,
                 Diet.Nect,Diet.Seed,Diet.PlantO,BodyMass.Value) %>%
   rename(Species=binomial)  %>%
-  bind_rows(intermd1) ->alltraits 
+  bind_rows(intermd1) ->alltraits
 
 
 write.csv(alltraits,file="/mnt/data1tb/Dropbox/gatti/data/traits/alltraits.csv",row.names=FALSE)
@@ -72,7 +78,7 @@ cats %>%
   filter(Species!="Suncus etruscus ALBINO" & Species!="Gallus gallus") %>%
   # change names to match the style of the trait dataframes
   mutate(Species=paste(stri_split_fixed(Species," ",simplify=T)[,1],stri_split_fixed(Species," ",simplify=T)[,2],sep="_"))  %>%
-  # fix a few names 
+  # fix a few names
   filter(Species!="Erithachus_rubecula") %>%
   mutate(Species=ifelse(Species=="Passer_italiae","Passer_domesticus",Species),
          Species=ifelse(Species=="Sylvia_subalpina","Sylvia_cantillans",Species),
@@ -132,7 +138,7 @@ cats1 %>%
   facet_wrap(~IUCN)+xlab("Class")+ylab("Proportion of species killed")+
   labs(fill="IUCN Category") ->barcat
 
-ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.png",width=12,height=9,dpi=400)
+ggsave(barcat,filename="/mnt/data1tb/Dropbox/gatti/figures/barcat.pdf",width=12,height=9,dpi=400)
 
 
 # --- Impacts on the functional structure of vertebrate communities
@@ -142,24 +148,34 @@ row.names(traitdf)<-as.character(traitdf$Species)
 pcoares<-ape::pcoa(gowdis(traitdf[2:12]),correction="cailliez")
 
 # insert information of animal Class
-data.frame(pcoares$vectors[,1:2],Species=row.names(pcoares$vectors)) %>% 
-  left_join(cats1 %>% 
+data.frame(pcoares$vectors[,1:2],Species=row.names(pcoares$vectors)) %>%
+  left_join(cats1 %>%
               dplyr::select(Species,Classe)  %>%
               distinct(Species,Classe)) %$%
   as.data.table(.) ->results
 
 # calculate convex hulls and create pretty figure
-results[, .SD[chull(Axis.1,Axis.2)], by =Classe] ->hulls  
+results[, .SD[chull(Axis.1,Axis.2)], by =Classe] ->hulls
 
 # create plot
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+n = 4
+cols = gg_color_hue(n)
+
+
+
 ggplot(data=results,aes(x=Axis.1,y=Axis.2,colour=Classe))+geom_point(size=3)+theme_bw()+
   geom_polygon(data = hulls,aes(fill=Classe),alpha = 0.2)+
-  theme(axis.text =element_text(size=19,colour="black"),axis.title = 
+  theme(axis.text =element_text(size=19,colour="black"),axis.title =
   element_text(size=19,colour="black"),legend.title=element_blank(),legend.text=element_text(size=19))+
-  ylab("Dim 2")+xlab("Dim 1")->finalp  
+  ylab("Dim 2")+xlab("Dim 1")+scale_fill_manual(values=cols[c(3,4,1,2)])+scale_color_manual(values=cols[c(3,4,1,2)])->finalp
 
 # save plot
-ggsave(finalp,file="/mnt/data1tb/Dropbox/gatti/figures/Fvolumes.png",width=9,height=8,
+ggsave(finalp,file="/mnt/data1tb/Dropbox/gatti/figures/Fvolumes.pdf",width=9,height=8,
        dpi=400)
 
 # --- Multivariate analysis of variance
@@ -209,7 +225,7 @@ for (i in 1:length(classe.l)){
   tmp.net.df<-ggnetwork(n)
   tmp.net.df$Classe<-unique(tmp$Classe)
   res<-rbind(tmp.net.df,res)
-  
+
 }
 
 res$x<-as.numeric(res$x)
@@ -230,7 +246,7 @@ netcat<-ggplot(data=res, aes(x = x, y = y, xend = xend, yend = yend)) +
   ylab("")+xlab("")
 
 # save plot
-ggsave(netcat,filename = "/mnt/data1tb/Dropbox/gatti/figures/network.png",
+ggsave(netcat,filename = "/mnt/data1tb/Dropbox/gatti/figures/network.pdf",
        width=11,height=10,dpi=400)
 
 #---- Network plots for all classes pooled together
@@ -266,5 +282,5 @@ netcat1<-ggplot(data=res1, aes(x = x, y = y, xend = xend, yend = yend)) +
   strip.text=element_text(face="bold",size=16),axis.text = element_blank())+
   ylab("")+xlab("")
 
-ggsave(netcat1,filename = "/mnt/data1tb/Dropbox/gatti/figures/network1.png",
+ggsave(netcat1,filename = "/mnt/data1tb/Dropbox/gatti/figures/network1.pdf",
        width=10,height=10,dpi=400)
